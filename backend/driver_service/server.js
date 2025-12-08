@@ -7,6 +7,7 @@ process.emitWarning = function(warning, ...args) {
   return originalEmitWarning.apply(process, [warning, ...args]);
 };
 
+require('dotenv').config();
 const express = require("express");
 const cors = require('cors');
 
@@ -16,14 +17,15 @@ const connectToDb = require("./db/db");
 const app = express();
 connectToDb();
 app.use(cookieParser());
+
+// Parse CORS origins from environment variable
+const corsOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : ["http://localhost:5173", "http://localhost:5174", "http://localhost:3001", "http://localhost:3004"];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3001",
-      "http://localhost:3004"
-    ],  // your Vite frontend
+    origin: corsOrigins,
     credentials: true,                // allow cookies / JWT headers
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -52,4 +54,5 @@ app.use((err, req, res, next) => {
   }
 });
 
-app.listen(3003, () => console.log("🚗 Driver Service running on port 3003"));
+const PORT = process.env.PORT || 3003;
+app.listen(PORT, () => console.log(`🚗 Driver Service running on port ${PORT}`));

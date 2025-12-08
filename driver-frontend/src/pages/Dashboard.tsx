@@ -408,7 +408,7 @@ export default function Dashboard() {
         <div className="bg-black/90 border border-white/10 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-[0_18px_40px_rgba(0,0,0,0.95)]">
           <h2 className="text-lg font-semibold">Rate your rider</h2>
           <p className="text-xs text-neutral-400">
-            Your feedback keeps the platform safe. You can skip, we’ll auto rate 4★.
+            Your feedback keeps the platform safe. You can skip, we'll auto rate 4★.
           </p>
 
           <div className="flex gap-1">
@@ -724,7 +724,7 @@ export default function Dashboard() {
             </div>
 
             <div className="space-y-2 text-sm">
-              <button className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
+              <button  onClick={() => navigate("/driver/profile")} className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
                 Profile
               </button>
               <button

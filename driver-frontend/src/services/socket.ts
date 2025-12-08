@@ -6,7 +6,8 @@ let socket: any = null;
 export const connectSocket = () => {
   if (socket) return socket;
 
-  socket = io("http://localhost:3004", {
+  const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:3004";
+  socket = io(socketUrl, {
     transports: ["websocket", "polling"],
     reconnection: true,
     withCredentials:true,

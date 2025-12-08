@@ -541,13 +541,15 @@ function BookingScreen({
       </div>
 
       {/* HEADER */}
-      <div className="absolute top-0 left-0 right-0 px-4 pt-5 pb-2 z-10">
+      <div className="absolute top-4 left-0 right-0 px-4 pb-2 z-10">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="rounded-full bg-black/70 border border-white/10 px-3 py-2 text-xs"
+            className="rounded-full bg-black/70 border border-white/15 px-3 py-2 text-xs font-medium flex items-center gap-2 backdrop-blur"
           >
-            ☰
+            <span className="inline-block w-4 h-[1.5px] bg-white" />
+            <span className="inline-block w-4 h-[1.5px] bg-white/80" />
+            <span className="inline-block w-3 h-[1.5px] bg-white/60" />
           </button>
           <div className="text-right">
             <p className="text-[10px] text-neutral-400">Hi</p>
@@ -707,10 +709,11 @@ function Sidebar({ isOpen, close, user, navigate, dispatch }) {
 
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="w-64 bg-black/95 border-r border-white/10 p-4">
+      <div className="w-64 h-full bg-black/95 border-r border-white/10 backdrop-blur-xl p-4 flex flex-col gap-4">
         <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-neutral-400">Rider</p>
           <p className="font-semibold">{user.fullname.firstname}</p>
-          <button onClick={close}>✕</button>
+          <button className="text-xs text-neutral-400" onClick={close}>✕</button>
         </div>
 
         <div className="space-y-2 text-sm">
@@ -719,23 +722,32 @@ function Sidebar({ isOpen, close, user, navigate, dispatch }) {
               close();
               navigate("/profile");
             }}
-            className="w-full text-left px-3 py-2 bg-white/5 rounded-xl"
+            className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
           >
             Profile
           </button>
+          <button className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
+            Ride History
+          </button>
+          <button className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
+            Settings
+          </button>
+          <button className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
+            Help &amp; Support
+          </button>
         </div>
 
-        <div className="mt-auto">
+        <div className="mt-auto pt-4 border-t border-white/10">
           <button
             onClick={() => dispatch(logout())}
-            className="w-full text-left px-3 py-2 bg-white/5 rounded-xl"
+            className="w-full text-left px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm"
           >
             Logout
           </button>
         </div>
       </div>
 
-      <div className="flex-1 bg-black/40" onClick={close} />
+      <div className="flex-1 h-full bg-black/40" onClick={close} />
     </div>
   );
 }
@@ -762,16 +774,19 @@ function FeedbackModal({ rideId, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center p-4 z-50">
-      <div className="bg-black/90 border border-white/10 p-4 rounded-2xl w-full max-w-sm">
+    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 backdrop-blur">
+      <div className="bg-black/90 border border-white/10 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-[0_18px_40px_rgba(0,0,0,0.95)]">
         <h2 className="text-lg font-semibold">Rate your Driver</h2>
+        <p className="text-xs text-neutral-400">
+          Your feedback keeps the platform safe. You can skip, we'll auto rate 4★.
+        </p>
 
-        <div className="flex gap-1 my-2">
+        <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((s) => (
             <button
               key={s}
               onClick={() => setRating(s)}
-              className={`text-2xl ${rating >= s ? "text-yellow-400" : "text-gray-500"
+              className={`text-2xl ${rating >= s ? "text-yellow-400" : "text-gray-600"
                 }`}
             >
               ★
@@ -780,21 +795,21 @@ function FeedbackModal({ rideId, onClose }) {
         </div>
 
         <textarea
-          className="w-full bg-black/50 border border-white/20 rounded-xl p-2 text-sm"
+          className="w-full border border-white/15 bg-black/70 rounded-xl p-2 text-sm text-white placeholder:text-neutral-500"
           rows={3}
           placeholder="Optional feedback"
           value={review}
           onChange={(e) => setReview(e.target.value)}
         />
 
-        <div className="flex justify-end gap-2 mt-3">
-          <button onClick={() => submit(4, "")} className="text-xs">
-            Skip
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={() => submit(4, "")} className="text-sm px-3 py-1 rounded-xl border border-white/20 text-neutral-200 hover:bg-white/5">
+          Skip (auto 4★)
           </button>
           <button
             onClick={() => submit(rating || 4, review)}
             disabled={loading}
-            className="px-3 py-1 bg-neutral-900 border border-white/20 rounded-xl"
+            className="text-sm px-3 py-1 rounded-xl bg-neutral-900 text-white border border-white/10 hover:bg-neutral-800"
           >
             {loading ? "Submitting..." : "Submit"}
           </button>

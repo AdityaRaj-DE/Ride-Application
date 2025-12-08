@@ -4,6 +4,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import ProtectedDriverRoute from "./components/driver/ProtectedDriverRoute";
 import WalletPage from "./pages/WalletPage";
+import DriverProfile from "./pages/DriverProfile";
 
 export default function App() {
   return (
@@ -20,7 +21,14 @@ export default function App() {
         }
       />
       <Route path="/driver/wallet" element={<WalletPage />} />
-
+      <Route
+        path="/driver/profile"
+        element={
+          <ProtectedDriverRoute>
+            <DriverProfile />
+          </ProtectedDriverRoute>
+        }
+      />
       {/* fallback */}
       <Route path="*" element={<Navigate to="/driver/login" />} />
     </Routes>

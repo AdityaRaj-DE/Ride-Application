@@ -16,12 +16,14 @@ const app = express();
 // Basic logging
 app.use(morgan("dev"));
 // app.use(express.json());
+// Parse CORS origins from environment variable
+const corsOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : ["http://localhost:5173", "http://localhost:5174"];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174"
-    ],  // your React dev server
+    origin: corsOrigins,  // your React dev server
     credentials: true,                // required for cookies/JWT
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

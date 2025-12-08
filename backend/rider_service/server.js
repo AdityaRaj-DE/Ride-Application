@@ -7,6 +7,7 @@ process.emitWarning = function(warning, ...args) {
   return originalEmitWarning.apply(process, [warning, ...args]);
 };
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -18,12 +19,15 @@ const app = express();
 
 connectToDb();
 app.use(cookieParser());
+
+// Parse CORS origins from environment variable
+const corsOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : ["http://localhost:5173", "http://localhost:5174"];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174"
-    ],  // your Vite frontend
+    origin: corsOrigins,
     credentials: true,                // allow cookies / JWT headers
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -54,6 +58,7 @@ app.use((err, req, res, next) => {
   }
 });
 
-app.listen(3002,()=>{
-    console.log('server is running');
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+    console.log(`👤 Rider Service running on port ${PORT}`);
 });

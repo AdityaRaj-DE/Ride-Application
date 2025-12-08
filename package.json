@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "start:auth": "cd backend/auth_service && nodemon server.js",
+    "start:rider": "cd backend/rider_service && nodemon server.js",
+    "start:driver": "cd backend/driver_service && nodemon server.js",
+    "start:ride": "cd backend/ride_service && nodemon server.js",
+    "start:payment": "cd backend/payment_service && nodemon server.js",
+    "start:notification": "cd backend/notification_service && nodemon server.js",
+    "start:gateway": "cd backend/api_gateway && nodemon server.js",
+    "start:Riderfrontend": "cd ride-frontend && npm run dev",
+    "start:Driverfrontend": "cd driver-frontend && npm run dev",
+    "start:frontend": "concurrently \"npm run start:Riderfrontend\" \"npm run start:Driverfrontend\" ",
+
+    "start:all": "concurrently \"npm run start:auth\" \"npm run start:rider\" \"npm run start:driver\" \"npm run start:ride\" \"npm run start:payment\" \"npm run start:notification\" \"npm run start:gateway\" "
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

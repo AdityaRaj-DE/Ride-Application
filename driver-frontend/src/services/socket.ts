@@ -1,0 +1,26 @@
+// services/socket.ts
+import { io } from "socket.io-client";
+
+let socket: any = null;
+
+export const connectSocket = () => {
+  if (socket) return socket;
+
+  socket = io("http://localhost:3004", {
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    withCredentials:true,
+  });
+
+  socket.on("connect", () => {
+    console.log("🔌 Socket connected:", socket.id);
+  });
+
+  socket.on("connect_error", (err: any) => {
+    console.error("Socket connection error:", err.message);
+  });
+
+  return socket;
+};
+
+export const getSocket = () => socket;

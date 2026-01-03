@@ -17,19 +17,25 @@ interface Ride {
   destination: any;
   fare: number;
   status: "REQUESTED" | "ACCEPTED" | "STARTED" | "COMPLETED" | "CANCELLED";
+  rider?: any;   // <-- add this
 }
+
 
 interface DriverRideState {
   pendingRequests: Ride[];
   activeRide: Ride | null;
   status: "IDLE" | "REQUESTED" | "ACCEPTED" | "STARTED" | "COMPLETED";
+  rider: any | null;  // <-- ADD THIS
 }
+
 
 const initialState: DriverRideState = {
   pendingRequests: [],
   activeRide: null,
   status: "IDLE",
+  rider: null,       // <-- ADD THIS
 };
+
 
 const driverRideSlice = createSlice({
   name: "driverRide",
@@ -50,6 +56,9 @@ const driverRideSlice = createSlice({
             fare: action.payload.fare,
             status: "ACCEPTED"
           };
+          if (action.payload.rider) {
+            state.rider = action.payload.rider;
+          }
       state.pendingRequests = [];
       state.status = "ACCEPTED";
     },
@@ -67,7 +76,11 @@ const driverRideSlice = createSlice({
 
     clearRequests(state) {
       state.pendingRequests = [];
+    },
+    setRiderDetails(state, action: PayloadAction<any>) {
+      state.rider = action.payload;
     }
+    
   },
   extraReducers: (builder) => {
     builder.addCase(fetchActiveDriverRide.fulfilled, (state, action) => {
@@ -98,6 +111,8 @@ export const {
   rideStarted,
   rideCompleted,
   clearRequests,
+  setRiderDetails,       // <-- add here
 } = driverRideSlice.actions;
+
 
 export default driverRideSlice.reducer;

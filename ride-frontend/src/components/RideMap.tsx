@@ -1,6 +1,18 @@
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useEffect } from "react";
+import { useMapEvents } from "react-leaflet";
+
+function CenterWatcher({ onCenter }) {
+  useMapEvents({
+    move: (e) => {
+      const m = e.target;
+      const c = m.getCenter();
+      onCenter && onCenter({ lat: c.lat, lng: c.lng });
+    }
+  });
+  return null;
+}
 
 const driverIcon = L.icon({
   iconUrl: "https://cdn-icons-png.flaticon.com/512/147/147144.png",
@@ -53,12 +65,12 @@ function CenterPin({ mode, onConfirm, mapMode }: any) {
       </div>
 
       {/* Confirm button */}
-      <button
+      {/* <button
         className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[1000] bg-black text-white px-4 py-2 rounded-full shadow-xl border border-white/20"
         onClick={handleConfirm}
       >
         {mode === "pickup" ? "Select Pickup" : "Select Destination"}
-      </button>
+      </button> */}
     </>
   );
 }
@@ -68,9 +80,11 @@ export default function RideMap({
   destination,
   driverLocation,
   route,
-  mapMode,              // "pickup" | "destination" | null
+  mapMode,
+  onCenter,              // "pickup" | "destination" | null
   onPickupConfirm,
   onDestinationConfirm,
+  
 }: any) {
   const fallback = pickup || driverLocation || { lat: 26.9, lng: 75.8 };
 
@@ -85,6 +99,7 @@ export default function RideMap({
         <TileLayer url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png" />
 
         <Recenter target={pickup} />
+        <CenterWatcher onCenter={onCenter} />
 
         {/* Center Pin for selection */}
         <CenterPin

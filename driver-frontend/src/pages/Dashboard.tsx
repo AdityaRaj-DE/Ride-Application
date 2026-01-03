@@ -6,6 +6,7 @@ import {
   rideAccepted,
   rideStarted,
   rideCompleted,
+  setRiderDetails,
 } from "../store/slices/driverRideSlice";
 
 import { useSelector, useDispatch } from "react-redux";
@@ -26,11 +27,16 @@ import { fetchWallet } from "../store/slices/driverWalletSlice";
 
 import { fetchActiveDriverRide } from "../store/slices/driverRideSlice";
 
+import useRideCall from "../hooks/useRideCall";
+import CallModal from "../components/CallModal";
 
 export default function Dashboard() {
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+
+  const [socket, setSocket] = useState<any>(null);
+
 
   const { driver } = useSelector((state: RootState) => state.driverAuth);
   const { lat, lng } = useSelector((state: RootState) => state.driverLocation);
@@ -39,6 +45,8 @@ export default function Dashboard() {
   const { activeRide, pendingRequests, status } = useSelector(
     (state: RootState) => state.driverRide
   );
+  const { rider } = useSelector((state: RootState) => state.driverRide);
+
 
   const { subscription } = useSelector(
     (state: RootState) => state.driverWallet
@@ -57,13 +65,19 @@ export default function Dashboard() {
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // ===== CALLING STATE (DRIVER) =====
+
+
   const [steps, setSteps] = useState<any[]>([]);
   const [nextStepIndex, setNextStepIndex] = useState(0);
   const [nextInstruction, setNextInstruction] = useState<string | null>(null);
 
+
+
+
   // THIS ref is now the master socket
-  const socketRef = useRef<any>(null);
   useEffect(() => {
+    if (!driver?._id) return;
     // dispatch(fetchDriverProfile());
     dispatch(fetchWallet());   // <--- add this
     dispatch(fetchActiveDriverRide());
@@ -71,18 +85,16 @@ export default function Dashboard() {
   // --- 1: create socket once ---
   useEffect(() => {
     if (!driver?._id) return;
+    const s = connectSocket(driver._id);
+    setSocket(s);
 
-    const socket = connectSocket(driver._id);
-    socketRef.current = socket;
-
-    const onConnect = () => {
-      console.log("connected, emitting join…");
-      socket.emit("join", { type: "driver", id: driver.userId });
-    };
-
-    socket.on("connect", onConnect);
+    s.on("connect", () => {
+      s.emit("join", { type: "driver", id: driver.userId });
+    });
 
   }, [driver?._id]);
+
+
 
 
 
@@ -92,7 +104,7 @@ export default function Dashboard() {
 
   // --- 3: GPS streaming only if online ---
   useEffect(() => {
-    if (!driver?.isAvailable || !socketRef.current) return;
+    
 
     setLocationUpdating(true);
 
@@ -102,7 +114,7 @@ export default function Dashboard() {
 
         dispatch(updateDriverLocation({ lat: latitude, lng: longitude }));
 
-        socketRef.current.emit("driver_location_update", {
+        socket?.emit("driver_location_update", {
           rideId: activeRide?.rideId,
           driverId: driver.userId,
           lat: latitude,
@@ -117,30 +129,25 @@ export default function Dashboard() {
       navigator.geolocation.clearWatch(watchId);
       setLocationUpdating(false);
     };
-  }, [driver?.isAvailable, activeRide?.rideId]);
+  }, [socket, driver?.isAvailable, activeRide?.rideId]);
 
   // --- 4: accept ride with room join ---
   const acceptRide = async (rideId: string) => {
     await axiosInstance.post(`/ride/rides/accept/${rideId}`);
 
-    // always join ride room first
-    socketRef.current?.emit("join", {
+    // join ride room for location + call signalling
+    socket?.emit("join", {
       type: "driver-ride",
-      rideId,
-    });
-
-    // then notify backend of accept
-    socketRef.current?.emit("driver_accept_ride", {
-      driverId: driver.userId,
       rideId,
     });
   };
 
 
+
   // --- 5: subscribe to socket events once driver exists ---
   useEffect(() => {
-    if (!socketRef.current) return;
-    const socket = socketRef.current;
+    if (!socket) return;
+
 
     socket.on("ride_broadcast", (ride) => {
       dispatch(requestReceived({
@@ -160,13 +167,19 @@ export default function Dashboard() {
         fare: ride.fare,
         status: "ACCEPTED",
       }));
+      if (ride.rider) {
+        dispatch(setRiderDetails(ride.rider));
+      }
+      console.log("RIDE_ACCEPTED_PAYLOAD_Driver", ride);
+
+
     });
 
     socket.on("ride_started", () => dispatch(rideStarted()));
 
     socket.on("ride_completed", (payload) => {
       dispatch(rideCompleted());
-      
+
       setRoute([]);           // <--- clear polyline
       setDistanceKm(null);    // optional
       setEtaMin(null);
@@ -182,8 +195,7 @@ export default function Dashboard() {
       socket.off("ride_started");
       socket.off("ride_completed");
     };
-  }, []);
-
+  }, [socket]);
   useEffect(() => {
     if (!steps.length || !driverLocation) return;
     const idx = nextStepIndex;
@@ -196,6 +208,43 @@ export default function Dashboard() {
     setNextInstruction(maneuver.instruction || "Continue straight");
     if (dMeters < 30) { setNextStepIndex(idx + 1); }
   }, [driverLocation, steps, nextStepIndex]);
+
+  const rideId = activeRide?.rideId || null;
+
+  const {
+    startCall,
+    hangup,
+    acceptIncoming,
+    rejectIncoming,
+    toggleMute,
+    state: callState,
+    timer,
+  } = useRideCall(socket, rideId);
+
+
+
+  const [callModalOpen, setCallModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (
+      callState.incoming ||
+      callState.ringing ||
+      callState.inCall ||
+      callState.connecting
+    ) {
+      setCallModalOpen(true);
+    } else {
+      setCallModalOpen(false);
+    }
+  }, [
+    callState.incoming,
+    callState.ringing,
+    callState.inCall,
+    callState.connecting,
+  ]);
+
+
+
 
   const updateRouteAndEta = async () => {
     if (!driverLocation || !activeRide) return;
@@ -410,23 +459,34 @@ export default function Dashboard() {
           <p className="text-xs text-neutral-400">
             Your feedback keeps the platform safe. You can skip, we'll auto rate 4★.
           </p>
-
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                className={`text-2xl ${rating && rating >= star
-                  ? "text-yellow-400"
-                  : "text-neutral-600"
-                  }`}
-                onClick={() => setRating(star)}
-                disabled={submitting}
-              >
-                ★
-              </button>
-            ))}
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  className={`text-2xl ${rating && rating >= star
+                    ? "text-yellow-400"
+                    : "text-neutral-600"
+                    }`}
+                  onClick={() => setRating(star)}
+                  disabled={submitting}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {rating && (
+              <p className="text-xl mt-1">
+                {{
+                  1: "😡 Terrible",
+                  2: "☹️ Poor",
+                  3: "😐 Okay",
+                  4: "🙂 Good",
+                  5: "🤩 Excellent!"
+                }[rating]}
+              </p>
+            )}
           </div>
-
           <textarea
             className="w-full border border-white/15 bg-black/70 rounded-xl p-2 text-sm text-white placeholder:text-neutral-500"
             rows={3}
@@ -553,151 +613,167 @@ export default function Dashboard() {
 
       {/* Bottom sheet */}
       <motion.div
-        initial={{ y: 220 }}
+        initial={{ y: 200 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 70 }}
-        className="absolute bottom-0 left-0 right-0 bg-black/95 rounded-t-3xl p-5 pb-7 shadow-[0_-18px_40px_rgba(0,0,0,0.95)] z-20 backdrop-blur-xl border-t border-white/10"
+        className="absolute bottom-0 left-0 right-0 bg-black/95 rounded-t-3xl p-5 pb-7 shadow-[0_-18px_40px_rgba(0,0,0,0.95)] z-20 backdrop-blur-xl border-t border-white/10 space-y-5"
       >
-        {/* Subscription hard gate */}
-        {!isSubscriptionActive ? (
-          <div className="space-y-3 text-sm">
-            <h2 className="text-base font-semibold">
-              Subscription required
-            </h2>
-            <p className="text-xs text-neutral-400">
-              You need an active subscription to go online and accept ride
-              requests. Recharge your wallet and activate a plan to start driving.
-            </p>
 
+        {/* Subscription lock */}
+        {!isSubscriptionActive && (
+          <div className="space-y-3 bg-black/70 border border-white/10 rounded-2xl p-4 shadow-xl">
+            <h2 className="text-sm font-semibold">Subscription required</h2>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              You need an active subscription to go online and accept requests.
+            </p>
             <button
               onClick={() => navigate("/driver/wallet")}
-              className="w-full py-3 rounded-2xl bg-neutral-100 text-black font-semibold text-sm shadow-[0_12px_30px_rgba(0,0,0,0.9)] hover:bg-white active:bg-neutral-200 transition"
+              className="w-full py-3 bg-neutral-100 text-black rounded-xl font-semibold active:scale-[.98] transition"
             >
               Activate Subscription
             </button>
-
             <p className="text-[10px] text-neutral-500 text-center">
-              Once active, you&apos;ll be able to go Online and receive rides.
+              Once active you can go online and receive rides.
             </p>
           </div>
-        ) : (
+        )}
+
+        {/* If subscription is active */}
+        {isSubscriptionActive && (
           <div className="space-y-4">
-            {/* Online / offline toggle */}
-            <div className="flex items-center justify-between">
+
+            {/* Availability */}
+            <div className="flex items-center justify-between bg-black/70 border border-white/10 rounded-2xl p-4">
               <div className="flex flex-col">
-                <span className="text-xs text-neutral-400">
-                  Availability
-                </span>
+                <span className="text-xs text-neutral-400">Availability</span>
                 <span className="text-sm font-semibold">
                   {driver?.isAvailable ? "Online" : "Offline"}
                 </span>
               </div>
+
               <button
                 onClick={toggleAvailability}
                 disabled={availabilityLoading}
                 className={`px-4 py-2 rounded-full text-xs font-semibold border ${driver?.isAvailable
-                  ? "bg-white text-black border-white"
-                  : "bg-black/70 text-white border-white/30"
-                  } disabled:opacity-60`}
+                    ? "bg-white text-black border-white"
+                    : "bg-black/60 text-white border-white/30"
+                  } disabled:opacity-50`}
               >
-                {availabilityLoading
-                  ? "Updating..."
-                  : driver?.isAvailable
-                    ? "Go Offline"
-                    : "Go Online"}
+                {availabilityLoading ? "Updating..." : driver?.isAvailable ? "Go Offline" : "Go Online"}
               </button>
             </div>
 
-            {/* Ride state actions */}
+            {/* Ride ACCEPTED */}
             {activeRide && status === "ACCEPTED" && (
-              <div className="space-y-3">
-                <p className="text-xs text-neutral-400">
-                  Enter OTP shared by rider to start the trip.
+              <div className="space-y-4">
+
+                {/* Rider Details Card */}
+                {rider && (
+                  <div className="bg-black/70 border border-white/10 rounded-2xl p-4 shadow-xl space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full bg-white/5 flex items-center justify-center text-sm font-semibold">
+                        {rider.name?.[0]?.toUpperCase() || "A"}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-base font-semibold">{rider.name || "Aditya Raj"}</p>
+                        <div className="flex items-center gap-1 text-[11px] text-yellow-400">
+                          <span>★</span>
+                          <span>5.0</span>
+                        </div>
+                        {/* <p className="text-xs text-neutral-400">{rider.phone}</p> */}
+                      </div>
+
+                      {/* Call */}
+                      <button
+                        onClick={async () => {
+                          if (!activeRide) return;
+                          try {
+                            await startCall({ callerId: driver.userId, callerName: driver.fullname.firstname });
+                          } catch (err) {
+                            alert("Could not start call");
+                          }
+                        }}
+                        className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-md active:scale-95 transition"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.9.37 1.77.72 2.6a2 2 0 0 1-.45 2.11L8.1 9.67a16 16 0 0 0 6 6l1.24-1.23a2 2 0 0 1 2.11-.45c.83.35 1.7.6 2.6.72A2 2 0 0 1 22 16.92Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-neutral-400 text-center">
+                  Enter OTP shared by rider
                 </p>
+
                 <input
                   type="text"
-                  placeholder="OTP"
-                  className="bg-black/70 text-white w-full px-4 py-3 rounded-2xl text-center text-xl tracking-[0.5em] border border-white/20 placeholder:text-neutral-500"
+                  placeholder="____"
+                  className="bg-black/60 border border-white/10 rounded-xl w-full text-center py-3 text-2xl font-mono tracking-[0.4em] placeholder:text-neutral-600"
                   maxLength={4}
                   value={enteredOTP}
                   onChange={(e) =>
-                    setEnteredOTP(
-                      e.target.value.replace(/\D/g, "").slice(0, 4)
-                    )
+                    setEnteredOTP(e.target.value.replace(/\D/g, "").slice(0, 4))
                   }
                 />
+
                 <button
                   onClick={() => startRide(enteredOTP)}
                   disabled={enteredOTP.length !== 4}
-                  className="bg-neutral-100 text-black w-full py-3 rounded-2xl font-semibold disabled:opacity-40"
+                  className="bg-neutral-100 text-black w-full py-3 rounded-xl font-semibold disabled:opacity-40 active:scale-[.98]"
                 >
-                  Verify &amp; Start Ride
+                  Verify & Start Ride
                 </button>
               </div>
             )}
 
+            {/* STARTED */}
             {activeRide && status === "STARTED" && (
               <button
                 onClick={completeRide}
-                className="bg-neutral-100 text-black w-full py-3 rounded-2xl font-semibold"
+                className="bg-neutral-100 text-black w-full py-3 rounded-xl font-semibold active:scale-[.98]"
               >
                 Complete Ride
               </button>
             )}
 
+            {/* Pending request */}
             {!activeRide && pendingRequests.length === 1 && (
-              <div className="space-y-3">
-                <div className="rounded-2xl bg-white/5 border border-white/15 p-3 text-sm">
-                  <p className="text-xs text-neutral-400 mb-1">
-                    New ride request
-                  </p>
-                  <p className="text-xs text-neutral-300">
-                    Pickup:{" "}
-                    <span className="font-mono text-[11px]">
-                      {JSON.stringify(
-                        pendingRequests[0].pickup
-                      ).slice(0, 32)}
-                      ...
-                    </span>
-                  </p>
-                  <p className="text-xs text-neutral-300">
-                    Destination:{" "}
-                    <span className="font-mono text-[11px]">
-                      {JSON.stringify(
-                        pendingRequests[0].destination
-                      ).slice(0, 32)}
-                      ...
-                    </span>
-                  </p>
-                  <p className="mt-1 text-xs">
-                    Fare:{" "}
-                    <span className="font-semibold">
-                      ₹{pendingRequests[0].fare}
-                    </span>
-                  </p>
-                </div>
+              <div className="space-y-3 bg-black/70 border border-white/10 rounded-2xl p-4">
+                <p className="text-xs text-neutral-400">New ride request</p>
+                <p className="text-xs text-neutral-300"> Pickup:{" "} <span className="font-mono text-[11px]"> {JSON.stringify( pendingRequests[0].pickup ).slice(0, )} </span> </p> <p className="text-xs text-neutral-300"> Destination:{" "} <span className="font-mono text-[11px]"> {JSON.stringify( pendingRequests[0].destination ).slice(0, )} </span> </p>
+                <p className="text-xs">Fare: ₹{pendingRequests[0].fare}</p>
 
                 <button
-                  onClick={() =>
-                    acceptRide(pendingRequests[0].rideId)
-                  }
-                  className="bg-neutral-100 text-black w-full py-3 rounded-2xl font-semibold"
+                  onClick={() => acceptRide(pendingRequests[0].rideId)}
+                  className="bg-neutral-100 text-black w-full py-3 rounded-xl font-semibold active:scale-[.98]"
                 >
                   Accept Ride
                 </button>
               </div>
             )}
 
+            {/* Idle */}
             {!activeRide && pendingRequests.length === 0 && (
               <p className="text-center text-xs text-neutral-500">
-                {driver?.isAvailable
-                  ? "Online. Waiting for ride requests…"
-                  : "You are offline. Go Online to receive rides."}
+                {driver?.isAvailable ? "Online. Waiting…" : "You are offline."}
               </p>
             )}
           </div>
         )}
+
       </motion.div>
+
 
       {/* Sidebar */}
       {isSidebarOpen && (
@@ -707,7 +783,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-sm text-neutral-400">Driver</p>
                 <p className="text-lg font-semibold">
-                  {driver?.fullname?.firstname || "Driver"}
+                  {driver?.fullname?.firstname}
                 </p>
                 {driver?.vehicle?.plate && (
                   <p className="text-[11px] text-neutral-500">
@@ -724,7 +800,7 @@ export default function Dashboard() {
             </div>
 
             <div className="space-y-2 text-sm">
-              <button  onClick={() => navigate("/driver/profile")} className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
+              <button onClick={() => navigate("/driver/profile")} className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5">
                 Profile
               </button>
               <button
@@ -770,6 +846,32 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* CALL MODAL */}
+      <CallModal
+        open={callModalOpen}
+        state={callState}
+        timerSec={timer.timerSec}
+        roleLabel="Rider"
+        onAccept={async () => {
+          try {
+            await acceptIncoming();
+          } catch (err) {
+            console.error(err);
+            alert("Failed to accept call");
+          }
+        }}
+        onReject={() => {
+          rejectIncoming();
+        }}
+        onHangup={() => {
+          hangup();
+        }}
+        onToggleMute={() => {
+          toggleMute();
+        }}
+      />
+
     </div>
   );
 }

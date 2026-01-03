@@ -38,9 +38,9 @@ async function getRoute(pickup, destination) {
 
 // Dynamic fare model
 function calculateFare(distanceKm, durationMin) {
-  const base = 50;
-  const perKm = 12;
-  const perMin = 2;
+  const base = 25;
+  const perKm = 7;
+  const perMin = 1;
   return Math.round(base + distanceKm * perKm + durationMin * perMin);
 }
 

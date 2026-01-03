@@ -22,11 +22,11 @@ app.use(cookieParser());
 // Parse CORS origins from environment variable
 const corsOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
-  : ["http://localhost:5173", "http://localhost:5174"];
+  : ["https://localhost:5173", "https://localhost:5174"];
 
 app.use(
   cors({
-    origin: corsOrigins,
+    origin: ["https://localhost:5173", "https://localhost:5174"],
     credentials: true,                // allow cookies / JWT headers
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

@@ -25,9 +25,6 @@ router.post('/login', [
     driverController.loginCaptain
 );
 
-
-router.get('/profile', authMiddleware.authCaptain, driverController.getCaptainProfile)
-
 router.get('/logout', authMiddleware.authCaptain, driverController.logoutCaptain)
 
 

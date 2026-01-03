@@ -94,103 +94,113 @@ function setupSockets(io) {
     // 🔹 Driver accepts ride
     // 🔹 Driver accepts ride
 // 🔹 Driver accepts ride
-socket.on("driver_accept_ride", async ({ driverId, rideId }) => {
-  try {
-    console.log("DRIVER_SERVICE_URL =", DRIVER_SERVICE_URL);
-    console.log("Requesting profile for driverId", driverId);
-    const ride = await Ride.findById(rideId);
-    console.log("ride.status:", ride?.status);
+// socket.on("driver_accept_ride", async ({ driverId, rideId }) => {
+//   try {
+//     console.log("DRIVER_SERVICE_URL =", DRIVER_SERVICE_URL);
+//     console.log("Requesting profile for driverId", driverId);
+//     const ride = await Ride.findById(rideId);
+//     console.log("ride.status:", ride?.status);
 
-    if (!ride || ride.status !== "REQUESTED") {
-      console.log("i am here");
-      return socket.emit("error", { message: "Ride unavailable" });
-    }
+//     if (!ride || ride.status !== "REQUESTED") {
+//       console.log("i am here");
+//       return socket.emit("error", { message: "Ride unavailable" });
+//     }
     
 
-    ride.driverId = driverId;
-    ride.status = "ACCEPTED";
-    await ride.save();
+//     ride.driverId = driverId;
+//     ride.status = "ACCEPTED";
+//     await ride.save();
 
-    // attach mapping for this ride
-    rideRooms.set(rideId, {
-      riderId: ride.riderId.toString(),
-      driverId: driverId.toString(),
-    });
-    socket.join(`ride_${rideId}`);
-    // 🔹 fetch full driver profile from DRIVER SERVICE
-    let driverProfile = null;
-    console.log(driverProfile);
-    try {
-      const { data } = await axios.get(
-        `${DRIVER_SERVICE_URL}/drivers/by-user/${driverId}`
-      );
+//     // attach mapping for this ride
+//     rideRooms.set(rideId, {
+//       riderId: ride.riderId.toString(),
+//       driverId: driverId.toString(),
+//     });
+//     socket.join(`ride_${rideId}`);
+//     // 🔹 fetch full driver profile from DRIVER SERVICE
+//     let driverProfile = null;
+//     console.log(driverProfile);
+//     try {
+//       const { data } = await axios.get(
+//         `${DRIVER_SERVICE_URL}/drivers/by-user/${driverId}`
+//       );
       
-      driverProfile = data;
+//       driverProfile = data;
      
-    } catch (e) {
-      console.warn("Driver profile fetch failed:", e.message);
-    }
-    console.log(driverProfile);
-    // 🔹 mark driver unavailable in driver service
-    try {
-      if (driverProfile?.userId) {
-        await axios.patch(
-          `${DRIVER_SERVICE_URL}/drivers/${driverProfile.userId}/status`,
-          { isAvailable: false }
-        );
-      }
-    } catch (err) {
-      console.warn("Driver status update failed:", err.message);
-    }
+//     } catch (e) {
+//       console.warn("Driver profile fetch failed:", e.message);
+//     }
+//     console.log(driverProfile);
+//     // 🔹 mark driver unavailable in driver service
+//     try {
+//       if (driverProfile?.userId) {
+//         await axios.patch(
+//           `${DRIVER_SERVICE_URL}/drivers/${driverProfile.userId}/status`,
+//           { isAvailable: false }
+//         );
+//       }
+//     } catch (err) {
+//       console.warn("Driver status update failed:", err.message);
+//     }
 
-    const driverSafe = driverProfile
-      ? {
-          id: driverProfile._id,
-          userId: driverProfile.userId,
-          name: `${driverProfile.fullname?.firstname || ""} ${
-            driverProfile.fullname?.lastname || ""
-          }`.trim(),
-          mobileNumber: driverProfile.mobileNumber,
-          vehicle: {
-            model: driverProfile.vehicleInfo?.model || "",
-            plate: driverProfile.vehicleInfo?.plateNumber || "",
-            color: driverProfile.vehicleInfo?.color || "",
-          },
-          rating: driverProfile.rating,
-        }
-      : null;
+//     const driverSafe = driverProfile
+//       ? {
+//           id: driverProfile._id,
+//           userId: driverProfile.userId,
+//           name: `${driverProfile.fullname?.firstname || ""} ${
+//             driverProfile.fullname?.lastname || ""
+//           }`.trim(),
+//           mobileNumber: driverProfile.mobileNumber,
+//           vehicle: {
+//             model: driverProfile.vehicleInfo?.model || "",
+//             plate: driverProfile.vehicleInfo?.plateNumber || "",
+//             color: driverProfile.vehicleInfo?.color || "",
+//           },
+//           rating: driverProfile.rating,
+//         }
+//       : null;
 
-    const payload = {
-      rideId: ride._id,
-      status: ride.status,
-      driverId,
-      driver: driverSafe,
-      pickup: ride.pickup,
-      destination: ride.destination,
-      fare: ride.fare,
-      distanceKm: ride.distanceKm,
-      durationMin: ride.durationMin,
-    };
+//     const payload = {
+//       rideId: ride._id,
+//       status: ride.status,
+//       driverId,
+//       driver: driverSafe,
+//       pickup: ride.pickup,
+//       destination: ride.destination,
+//       fare: ride.fare,
+//       distanceKm: ride.distanceKm,
+//       durationMin: ride.durationMin,
+//     };
 
-    console.log(
-      "Emitting ride_accepted to rider_",
-      ride.riderId.toString(),
-      payload
-    );
+//     console.log(
+//       "Emitting ride_accepted to rider_",
+//       ride.riderId.toString(),
+//       payload
+//     );
 
-    // 🔹 Rider gets driver profile + ride data
-    io.to(`rider_${ride.riderId.toString()}`).emit("ride_accepted", payload);
+//     // 🔹 Rider gets driver profile + ride data
+//     io.to(`rider_${ride.riderId.toString()}`).emit("ride_accepted", payload);
 
-    // 🔹 Driver also gets the SAME event name and data
-    socket.emit("ride_accepted", payload);   // ✅ FIX: matches driver frontend
-  } catch (err) {
-    console.error("driver_accept_ride:", err);
-    socket.emit("error", { message: "Accept failed" });
+//     // 🔹 Driver also gets the SAME event name and data
+//     socket.emit("ride_accepted", payload);   // ✅ FIX: matches driver frontend
+//   } catch (err) {
+//     console.error("driver_accept_ride:", err);
+//     socket.emit("error", { message: "Accept failed" });
+//   }
+// });
+
+
+    // 🔹 Driver accepts ride (socket side – only joins ride room now)
+socket.on("driver_accept_ride", ({ driverId, rideId }) => {
+  console.log("driver_accept_ride (socket) - join ride room only", {
+    driverId,
+    rideId,
+  });
+  if (rideId) {
+    socket.join(`ride_${rideId}`);
   }
 });
 
-
-    
     
 
     // 🔹 Real-time driver location updates
@@ -270,11 +280,32 @@ socket.on("driver_accept_ride", async ({ driverId, rideId }) => {
         }
       }
     );
+    socket.on("call_offer", ({ rideId, offer }) => {
+      io.to(`ride_${rideId}`).emit("call_offer", { offer });
+    });
+    
+    // driver sending answer
+    socket.on("call_answer", ({ rideId, answer }) => {
+      io.to(`ride_${rideId}`).emit("call_answer", { answer });
+    });
+    
+    // ICE exchange both ways
+    socket.on("call_ice_candidate", ({ rideId, candidate }) => {
+      io.to(`ride_${rideId}`).emit("call_ice_candidate", { candidate });
+    });
+    // inside io.on("connection", socket) { ... }
+    socket.on("call_hangup", ({ rideId, from }) => {
+      io.to(`ride_${rideId}`).emit("call_hangup", { from });
+    });
 
     socket.on("disconnect", () =>
       console.log("❌ Socket disconnected:", socket.id)
     );
   });
+
+  // rider sending offer
+
+
 
   return io;
 }

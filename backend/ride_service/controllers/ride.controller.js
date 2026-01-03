@@ -81,21 +81,24 @@ exports.rideRequest = async (req, res) => {
 // Driver accepts via HTTP
 exports.rideAccept = async (req, res) => {
   try {
-    const driverId = req.user.id; // Auth driver ID
+    const driverId = req.user.id;
     const { rideId } = req.params;
 
     if (!driverId) return res.status(400).json({ error: "driverId required" });
 
-    const ride = await Ride.findById(rideId);
+    // Rider is stored in same DB → populate rider only
+    const ride = await Ride.findById(rideId)
+      .populate("riderId", "fullname phone");
+
     if (!ride) return res.status(404).json({ error: "Ride not found" });
 
     if (ride.status !== "REQUESTED") {
-      return res
-        .status(400)
-        .json({ error: "Ride already taken or not requestable" });
+      return res.status(400).json({
+        error: "Ride already taken or not requestable",
+      });
     }
 
-    // Subscription check
+    // subscription check
     try {
       const { data } = await axios.get(
         `${DRIVER_SERVICE_URL}/drivers/subscription-status/${driverId}`
@@ -113,7 +116,7 @@ exports.rideAccept = async (req, res) => {
         .json({ error: "Failed to verify subscription status" });
     }
 
-    // mark ride accepted
+    // update ride
     ride.driverId = driverId;
     ride.status = "ACCEPTED";
     await ride.save();
@@ -123,47 +126,83 @@ exports.rideAccept = async (req, res) => {
       await axios.patch(
         `${DRIVER_SERVICE_URL}/drivers/${driverId}/status`,
         { isAvailable: false },
-        {
-          headers: { Authorization: req.headers.authorization },
-        }
+        { headers: { Authorization: req.headers.authorization } }
       );
     } catch (err) {
       console.warn("Could not mark driver busy:", err.message);
     }
 
-    // fetch full driver profile
-    let driverInfo = null;
+    // fetch full driver profile from DRIVER SERVICE (this has correct fields)
+    let driverProfile = null;
     try {
       const { data } = await axios.get(
         `${DRIVER_SERVICE_URL}/drivers/by-user/${driverId}`
       );
-      driverInfo = data;
+      driverProfile = data;
     } catch (err) {
       console.warn("Driver fetch failed:", err.message);
     }
 
     const io = req.app.get("io");
 
-    const payload = {
+    const driverSafe = driverProfile
+      ? {
+          id: driverProfile._id,
+          userId: driverProfile.userId,
+          name: `${driverProfile.fullname?.firstname || ""} ${
+            driverProfile.fullname?.lastname || ""
+          }`.trim(),
+          phone: driverProfile.mobileNumber,
+          vehicle: {
+            model: driverProfile.vehicleInfo?.model || "",
+            plate: driverProfile.vehicleInfo?.plateNumber || "",
+            color: driverProfile.vehicleInfo?.color || "",
+          },
+          rating: driverProfile.rating,
+        }
+      : null;
+
+    const riderSafe = ride.riderId
+      ? {
+          id: ride.riderId._id,
+          name: ride.riderId.fullname?.firstname,
+          phone: ride.riderId.phone,
+        }
+      : null;
+
+    // send to rider (they need driver)
+    const riderPayload = {
       rideId: ride._id,
       pickup: ride.pickup,
       destination: ride.destination,
       fare: ride.fare,
       status: "ACCEPTED",
-      driver: driverInfo,         // <-- THIS IS WHAT FRONTEND NEEDS
+      driver: driverSafe,
+    };
+
+    // send to driver (they need rider)
+    const driverPayload = {
+      rideId: ride._id,
+      pickup: ride.pickup,
+      destination: ride.destination,
+      fare: ride.fare,
+      status: "ACCEPTED",
+      rider: riderSafe,
     };
 
     if (io) {
-      io.to(`rider_${ride.riderId}`).emit("ride_accepted", payload);
-      io.to(`driver_${driverId}`).emit("ride_accepted", payload);
+      io.to(`rider_${ride.riderId.toString()}`).emit("ride_accepted", riderPayload);
+      io.to(`driver_${driverId}`).emit("ride_accepted", driverPayload);
     }
 
-    res.json({ success: true, message: "Ride accepted", driver: driverInfo });
+    res.json({ success: true, rideId: ride._id });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
+
+
 
 
 

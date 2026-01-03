@@ -19,20 +19,7 @@ router.post('/login', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
 ], userController.loginUser);
 
-router.get('/profile', authMiddleware.authUser, userController.getUserProfile);
 router.get('/logout', authMiddleware.authUser, userController.logoutUser);
-
-// 🔹 NEW ROUTES
-router.patch('/update-profile', authMiddleware.authUser, userExtra.updateProfile);
-router.delete('/delete', authMiddleware.authUser, userExtra.deleteUser);
-
-// Email/OTP verification
-router.post('/verify/request', authMiddleware.authUser, userExtra.requestVerification);
-router.post('/verify', authMiddleware.authUser, userExtra.verifyUser);
-
-// Wallet routes
-router.get('/wallet', authMiddleware.authUser, userExtra.wallet);
-router.patch('/wallet', authMiddleware.authUser, userExtra.wallet);
 
 // Ratings
 

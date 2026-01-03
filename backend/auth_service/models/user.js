@@ -19,13 +19,13 @@ const userSchema = new mongoose.Schema({
     required: true,
     select: false,
   },
-  socketId: { type: String },
-
+  mobileNumber: {
+    type: String,
+    required: true,
+    unique:true,
+  },
   // 🔹 NEW FIELDS
   isVerified: { type: Boolean, default: false },
-  otp: { type: String },
-  otpExpires: { type: Date },
-  walletBalance: { type: Number, default: 0 },
   rating: { type: Number, default: 5 },
   totalRatings: { type: Number, default: 0 },
 });

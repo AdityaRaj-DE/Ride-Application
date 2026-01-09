@@ -1,4 +1,4 @@
-# Ride Sharing Application - Documentation
+# Ride-Sharing Application - Documentation
 
 A microservices-based ride sharing application with separate frontends for riders and drivers.
 
